@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """
-미팅 동선 공유 지도 (참석자별 색 구분 버전)
+미팅 동선 공유 지도 (참석자별 색 구분 + 비밀번호 잠금 버전)
+- 앱 진입 시 비밀번호 확인
 - 여러 사람이 같은 링크에서 미팅 정보를 입력
 - 구글 시트에 저장 (공유 저장소)
 - 카카오 API로 국내 주소를 좌표로 변환
@@ -22,7 +23,7 @@ from streamlit_folium import st_folium
 # ──────────────────────────────────────────────────────────────
 # 기본 설정
 # ──────────────────────────────────────────────────────────────
-st.set_page_config(page_title="미팅 동선 지도", page_icon="📍", layout="wide")
+st.set_page_config(page_title="2026년 고양시 미팅 지도", page_icon="📍", layout="wide")
 
 SHEET_HEADERS = ["미팅명", "주소", "일시", "참석자", "메모", "작성자", "lat", "lng"]
 
@@ -38,6 +39,30 @@ COLOR_PALETTE = [
     ("cadetblue", "#436978"),
     ("darkgreen", "#728224"),
 ]
+
+
+# ──────────────────────────────────────────────────────────────
+# 비밀번호 확인
+# ──────────────────────────────────────────────────────────────
+def check_password():
+    """비밀번호가 맞아야 통과. 틀리거나 미입력이면 여기서 멈춤."""
+    # secrets에 app_password가 없으면 잠금 비활성화(그냥 통과)
+    if "app_password" not in st.secrets:
+        return
+
+    if st.session_state.get("password_ok"):
+        return
+
+    st.markdown("### 🔒 비밀번호를 입력하세요")
+    pw = st.text_input("비밀번호", type="password", label_visibility="collapsed")
+    if pw == "":
+        st.stop()  # 아직 입력 안 함
+    if pw == st.secrets["app_password"]:
+        st.session_state["password_ok"] = True
+        st.rerun()
+    else:
+        st.error("비밀번호가 틀렸습니다.")
+        st.stop()
 
 
 # ──────────────────────────────────────────────────────────────
@@ -135,7 +160,6 @@ def render_map(df: pd.DataFrame):
     df["lat"] = pd.to_numeric(df["lat"], errors="coerce")
     df["lng"] = pd.to_numeric(df["lng"], errors="coerce")
     df = df.dropna(subset=["lat", "lng"])
-    # 참석자 비어있으면 '미지정' 처리
     if "참석자" not in df.columns:
         df["참석자"] = "미지정"
     df["참석자"] = df["참석자"].apply(lambda p: p if str(p).strip() else "미지정")
@@ -202,6 +226,9 @@ def render_map(df: pd.DataFrame):
 # ──────────────────────────────────────────────────────────────
 def main():
     st.title("📍 미팅 동선 공유 지도")
+
+    check_password()  # 비밀번호 통과해야 아래 내용이 보임
+
     st.caption("주소를 입력하면 지도에 위치와 동선이 표시됩니다. 참석자별로 색이 나뉘어요. 새로고침하면 갱신됩니다.")
 
     try:
